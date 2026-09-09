@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Spice Garden · Order</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div class="boot">Opening your table…</div>
+  </div>
+  <!-- Edit config.js with your live Laravel API URL before / after deploy -->
+  <script src="/config.js"></script>
+  <script>
+    (function () {
+      var parts = location.pathname.split("/").filter(Boolean);
+      var token = parts[0] === "t" ? parts[1] : null;
+      var cfg = window.__CUSTOMER_CONFIG__ || {};
+      window.__CUSTOMER__ = {
+        tableToken: token,
+        apiBase: cfg.apiBase || "/api/v1",
+        restaurantName: cfg.restaurantName || "Spice Garden",
+        tableLabel: "Table",
+      };
+    })();
+  </script>
+  <script src="/app.js" defer></script>
+</body>
+</html>

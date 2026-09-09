@@ -1,8 +1,11 @@
 (() => {
   const cfg = window.__CUSTOMER__ || {};
-  // Always same host as the page (works on phone LAN IP, not localhost).
+  // Prefer injected config (Laravel blade or Vercel index.html).
+  // Fallback: read token from /t/{token} when hosted on Vercel.
+  const pathParts = location.pathname.split("/").filter(Boolean);
+  const pathToken = pathParts[0] === "t" ? pathParts[1] : null;
   const API = (cfg.apiBase || "/api/v1").replace(/\/$/, "");
-  const TOKEN = cfg.tableToken;
+  const TOKEN = cfg.tableToken || pathToken || null;
 
   function uuid() {
     if (globalThis.crypto && typeof crypto.randomUUID === "function") {
