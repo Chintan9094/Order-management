@@ -26,6 +26,14 @@ abstract class OrderRepository {
     String? idempotencyKey,
   });
 
+  /// Staff places an order for a guest at [tableId] (opens session if needed).
+  Future<Order> placeStaffOrderForTable({
+    required String tableId,
+    required List<PlaceOrderItemRequest> items,
+    String? orderNote,
+    String? idempotencyKey,
+  });
+
   Future<List<Order>> getSessionOrders(String sessionId);
 
   Future<List<Order>> getStaffOrders({OrderStatusFilter? filter});

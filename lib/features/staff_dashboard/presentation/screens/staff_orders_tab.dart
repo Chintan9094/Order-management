@@ -17,7 +17,9 @@ import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../orders/domain/entities/order.dart';
 import '../../../orders/domain/order_status_machine.dart';
 import '../../../shared/domain/enums.dart';
+import '../../../shared/domain/staff_permissions.dart';
 import '../providers/staff_providers.dart';
+import 'staff_place_order_screen.dart';
 
 class StaffOrdersTab extends ConsumerStatefulWidget {
   const StaffOrdersTab({super.key});
@@ -30,6 +32,15 @@ class _StaffOrdersTabState extends ConsumerState<StaffOrdersTab> {
   StreamSubscription? _sub;
   OrderStatus? _filter;
   String? _busyOrderId;
+
+  static const _filterStatuses = <OrderStatus>[
+    OrderStatus.pending,
+    OrderStatus.accepted,
+    OrderStatus.preparing,
+    OrderStatus.served,
+    OrderStatus.completed,
+    OrderStatus.cancelled,
+  ];
 
   @override
   void initState() {
@@ -70,11 +81,25 @@ class _StaffOrdersTabState extends ConsumerState<StaffOrdersTab> {
     }
   }
 
+  Future<void> _openPlaceOrder() async {
+    final placed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => const StaffPlaceOrderScreen(),
+      ),
+    );
+    if (placed == true) {
+      ref.invalidate(staffOrdersProvider);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(staffOrdersProvider);
-    final role = ref.watch(authControllerProvider).user?.role;
+    final user = ref.watch(authControllerProvider).user;
+    final role = user?.role;
     final isManager = role == StaffRole.admin || role == StaffRole.manager;
+    final canPlaceOrder = user?.hasPermission(StaffPermissions.manageOrders) ??
+        false;
 
     return async.when(
       loading: () => const AppLoading(message: 'Loading orders…'),
@@ -87,146 +112,175 @@ class _StaffOrdersTabState extends ConsumerState<StaffOrdersTab> {
             ? orders
             : orders.where((o) => o.status == _filter).toList();
 
-        return Column(
+        return Stack(
           children: [
-            SizedBox(
-              height: 48,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                children: [
-                  _FilterChip(
-                    label: 'All',
-                    selected: _filter == null,
-                    onTap: () => setState(() => _filter = null),
+            Column(
+              children: [
+                SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    children: [
+                      _FilterChip(
+                        label: 'All',
+                        selected: _filter == null,
+                        onTap: () => setState(() => _filter = null),
+                      ),
+                      ..._filterStatuses.map(
+                        (s) => _FilterChip(
+                          label: _label(s),
+                          selected: _filter == s,
+                          onTap: () => setState(() => _filter = s),
+                        ),
+                      ),
+                    ],
                   ),
-                  ...OrderStatus.values.map(
-                    (s) => _FilterChip(
-                      label: _label(s),
-                      selected: _filter == s,
-                      onTap: () => setState(() => _filter = s),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const AppEmptyState(
-                      title: 'No orders',
-                      subtitle: 'Incoming orders will appear here.',
-                      icon: Icons.receipt_long_outlined,
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () async =>
-                          ref.invalidate(staffOrdersProvider),
-                      child: ListView.separated(
-                        padding: AppSpacing.screenPadding,
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final order = filtered[index];
-                          final next = _nextStatus(order.status);
-                          final canCancel = OrderStatusMachine.canCancel(
-                            current: order.status,
-                            isManagerOrAbove: isManager,
-                          );
-                          final busy = _busyOrderId == order.id;
-
-                          return Container(
-                            padding: const EdgeInsets.all(AppSpacing.md),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: AppSpacing.radiusMd,
-                              border: Border.all(color: AppColors.outline),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x080F1419),
-                                  blurRadius: 18,
-                                  offset: Offset(0, 8),
-                                ),
-                              ],
+                ),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? const AppEmptyState(
+                          title: 'No orders',
+                          subtitle: 'Incoming orders will appear here.',
+                          icon: Icons.receipt_long_outlined,
+                        )
+                      : RefreshIndicator(
+                          onRefresh: () async =>
+                              ref.invalidate(staffOrdersProvider),
+                          child: ListView.separated(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.md,
+                              AppSpacing.sm,
+                              AppSpacing.md,
+                              canPlaceOrder ? 88 : AppSpacing.md,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'Order #${order.id} · Table ${order.tableId}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium,
-                                      ),
-                                    ),
-                                    StatusBadge(
-                                      label: _label(order.status),
-                                      color: _statusColor(order.status),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: AppSpacing.sm),
+                            itemBuilder: (context, index) {
+                              final order = filtered[index];
+                              final next = _nextStatus(order.status);
+                              final canCancel = OrderStatusMachine.canCancel(
+                                current: order.status,
+                                isManagerOrAbove: isManager,
+                              );
+                              final busy = _busyOrderId == order.id;
+
+                              return Container(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: AppSpacing.radiusMd,
+                                  border: Border.all(color: AppColors.outline),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x080F1419),
+                                      blurRadius: 18,
+                                      offset: Offset(0, 8),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: AppSpacing.xs),
-                                ...order.items.map(
-                                  (i) => Text(
-                                    '${i.quantity}× ${i.nameSnapshot}',
-                                    style:
-                                        Theme.of(context).textTheme.bodyMedium,
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.sm),
-                                Text(
-                                  CurrencyFormatter.format(order.grandTotal),
-                                  style:
-                                      Theme.of(context).textTheme.titleSmall,
-                                ),
-                                if (next != null || canCancel) ...[
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Wrap(
-                                    spacing: AppSpacing.xs,
-                                    children: [
-                                      if (next != null)
-                                        FilledButton(
-                                          onPressed: busy
-                                              ? null
-                                              : () =>
-                                                  _updateStatus(order, next),
-                                          style: FilledButton.styleFrom(
-                                            minimumSize: const Size(0, 40),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 14,
-                                            ),
-                                            backgroundColor: AppColors.saffron,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            'Order #${order.id} · Table ${order.tableId}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium,
                                           ),
-                                          child: Text(_actionLabel(next)),
                                         ),
-                                      if (canCancel)
-                                        OutlinedButton(
-                                          onPressed: busy
-                                              ? null
-                                              : () => _updateStatus(
-                                                    order,
-                                                    OrderStatus.cancelled,
-                                                  ),
-                                          style: OutlinedButton.styleFrom(
-                                            minimumSize: const Size(0, 40),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 14,
+                                        StatusBadge(
+                                          label: _label(order.status),
+                                          color: _statusColor(order.status),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    ...order.items.map(
+                                      (i) => Text(
+                                        '${i.quantity}× ${i.nameSnapshot}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.sm),
+                                    Text(
+                                      CurrencyFormatter.format(order.grandTotal),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    if (next != null || canCancel) ...[
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Wrap(
+                                        spacing: AppSpacing.xs,
+                                        children: [
+                                          if (next != null)
+                                            FilledButton(
+                                              onPressed: busy
+                                                  ? null
+                                                  : () => _updateStatus(
+                                                        order,
+                                                        next,
+                                                      ),
+                                              style: FilledButton.styleFrom(
+                                                minimumSize: const Size(0, 40),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                ),
+                                                backgroundColor:
+                                                    AppColors.saffron,
+                                              ),
+                                              child: Text(_actionLabel(next)),
                                             ),
-                                          ),
-                                          child: const Text('Cancel'),
-                                        ),
+                                          if (canCancel)
+                                            OutlinedButton(
+                                              onPressed: busy
+                                                  ? null
+                                                  : () => _updateStatus(
+                                                        order,
+                                                        OrderStatus.cancelled,
+                                                      ),
+                                              style: OutlinedButton.styleFrom(
+                                                minimumSize: const Size(0, 40),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 14,
+                                                ),
+                                              ),
+                                              child: const Text('Cancel'),
+                                            ),
+                                        ],
+                                      ),
                                     ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                ),
+              ],
             ),
+            if (canPlaceOrder)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.extended(
+                  heroTag: 'staff-place-order',
+                  backgroundColor: AppColors.saffron,
+                  onPressed: _openPlaceOrder,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Order for table'),
+                ),
+              ),
           ],
         );
       },
@@ -237,8 +291,7 @@ class _StaffOrdersTabState extends ConsumerState<StaffOrdersTab> {
     return switch (current) {
       OrderStatus.pending => OrderStatus.accepted,
       OrderStatus.accepted => OrderStatus.preparing,
-      OrderStatus.preparing => OrderStatus.ready,
-      OrderStatus.ready => OrderStatus.served,
+      OrderStatus.preparing || OrderStatus.ready => OrderStatus.served,
       OrderStatus.served => OrderStatus.completed,
       _ => null,
     };
@@ -248,15 +301,23 @@ class _StaffOrdersTabState extends ConsumerState<StaffOrdersTab> {
     return switch (next) {
       OrderStatus.accepted => 'Accept',
       OrderStatus.preparing => 'Prepare',
-      OrderStatus.ready => 'Ready',
-      OrderStatus.served => 'Served',
-      OrderStatus.completed => 'Complete',
+      OrderStatus.served => 'Serve',
+      OrderStatus.completed => 'Completed',
       _ => 'Update',
     };
   }
 
-  String _label(OrderStatus status) =>
-      status.name[0].toUpperCase() + status.name.substring(1);
+  String _label(OrderStatus status) {
+    return switch (status) {
+      OrderStatus.pending => 'Pending',
+      OrderStatus.accepted => 'Accepted',
+      OrderStatus.preparing => 'Preparing',
+      OrderStatus.ready => 'Ready',
+      OrderStatus.served => 'Served',
+      OrderStatus.completed => 'Completed',
+      OrderStatus.cancelled => 'Cancelled',
+    };
+  }
 
   Color _statusColor(OrderStatus status) {
     return switch (status) {

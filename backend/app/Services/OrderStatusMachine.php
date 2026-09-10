@@ -17,7 +17,8 @@ class OrderStatusMachine
     private const TRANSITIONS = [
         OrderStatus::Pending->value => [OrderStatus::Accepted->value],
         OrderStatus::Accepted->value => [OrderStatus::Preparing->value],
-        OrderStatus::Preparing->value => [OrderStatus::Ready->value],
+        // Primary kitchen flow: Prepare → Serve (skip Ready in staff UI).
+        OrderStatus::Preparing->value => [OrderStatus::Served->value, OrderStatus::Ready->value],
         OrderStatus::Ready->value => [OrderStatus::Served->value],
         OrderStatus::Served->value => [OrderStatus::Completed->value],
         OrderStatus::Completed->value => [],

@@ -20,6 +20,7 @@ abstract final class ApiEndpoints {
   static const String tables = '/tables';
   static String table(String tableId) => '/tables/$tableId';
   static String tableQr(String tableId) => '/tables/$tableId/qr';
+  static String tableOrders(String tableId) => '/tables/$tableId/orders';
   static const String categories = '/categories';
   static String category(String categoryId) => '/categories/$categoryId';
   static const String menuItems = '/menu-items';

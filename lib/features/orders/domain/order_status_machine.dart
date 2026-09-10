@@ -1,11 +1,12 @@
 import '../../shared/domain/enums.dart';
 
 /// Controlled order status transitions.
+/// Staff UI path: Accept → Prepare → Serve → Completed.
 abstract final class OrderStatusMachine {
   static const Map<OrderStatus, Set<OrderStatus>> _transitions = {
     OrderStatus.pending: {OrderStatus.accepted, OrderStatus.cancelled},
     OrderStatus.accepted: {OrderStatus.preparing, OrderStatus.cancelled},
-    OrderStatus.preparing: {OrderStatus.ready},
+    OrderStatus.preparing: {OrderStatus.served, OrderStatus.ready},
     OrderStatus.ready: {OrderStatus.served},
     OrderStatus.served: {OrderStatus.completed},
     OrderStatus.completed: {},

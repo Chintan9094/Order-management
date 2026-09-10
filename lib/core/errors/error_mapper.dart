@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import 'exceptions.dart';
 import 'failures.dart';
 
@@ -8,13 +10,24 @@ abstract final class ErrorMapper {
       return ValidationFailure(_friendlyNetworkMessage(error) ?? error);
     }
 
+    if (error is DioException) {
+      final nested = error.error;
+      if (nested is AppException) {
+        return mapException(nested);
+      }
+      final msg = error.message ?? nested?.toString() ?? 'Request failed';
+      return NetworkFailure(_friendlyNetworkMessage(msg) ?? msg);
+    }
+
     final raw = error.toString();
     final friendly = _friendlyNetworkMessage(raw);
     if (friendly != null &&
         (error is NetworkException ||
             raw.contains('XMLHttpRequest') ||
             raw.contains('CORS') ||
-            raw.contains('connection errored'))) {
+            raw.contains('connection errored') ||
+            raw.contains('took longer than') ||
+            raw.contains('Timeout'))) {
       return NetworkFailure(friendly);
     }
 
@@ -51,16 +64,20 @@ abstract final class ErrorMapper {
 
   static String? _friendlyNetworkMessage(String message) {
     final lower = message.toLowerCase();
+    if (lower.contains('timeout') ||
+        lower.contains('took longer than') ||
+        lower.contains('timed out')) {
+      return 'Server is waking up (common on free hosting). '
+          'Wait a few seconds and tap Sign in again.';
+    }
     if (lower.contains('xmlhttprequest') ||
         lower.contains('cors') ||
         lower.contains('connection errored') ||
         lower.contains('failed host lookup') ||
         lower.contains('connection refused') ||
         lower.contains('socketexception')) {
-      return 'Unable to reach the server. On a phone, localhost will not work — '
-          'use your PC LAN IP in .env (example: http://192.168.1.10:8000/api/v1), '
-          'run `php artisan serve --host=0.0.0.0 --port=8000`, and keep phone + PC '
-          'on the same Wi‑Fi.';
+      return 'Unable to reach the server. Check your internet connection '
+          'and that the API URL in .env points to your live Render backend.';
     }
     return null;
   }

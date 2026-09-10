@@ -24,12 +24,21 @@ void main() {
       );
     });
 
+    test('allows prepare → serve (skip ready)', () {
+      expect(
+        OrderStatusMachine.canTransition(
+          OrderStatus.preparing,
+          OrderStatus.served,
+        ),
+        isTrue,
+      );
+    });
+
     test('allows full happy path', () {
       const path = [
         OrderStatus.pending,
         OrderStatus.accepted,
         OrderStatus.preparing,
-        OrderStatus.ready,
         OrderStatus.served,
         OrderStatus.completed,
       ];

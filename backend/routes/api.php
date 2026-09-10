@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SessionOrderController;
+use App\Http\Controllers\Api\V1\StaffTableOrderController;
 use App\Http\Controllers\Api\V1\TableController;
 use App\Http\Controllers\Api\V1\TableResolveController;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('orders', [OrderController::class, 'index']);
         Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus']);
+        Route::post('tables/{table}/orders', [StaffTableOrderController::class, 'store'])
+            ->middleware('permission:admin,manager,waiter');
 
         Route::get('tables', [TableController::class, 'index']);
         Route::post('tables', [TableController::class, 'store'])

@@ -23,6 +23,7 @@ class ApiClient {
         baseUrl: config.apiBaseUrl,
         connectTimeout: AppConstants.defaultConnectTimeout,
         receiveTimeout: AppConstants.defaultReceiveTimeout,
+        sendTimeout: AppConstants.defaultSendTimeout,
         headers: {
           Headers.contentTypeHeader: Headers.jsonContentType,
           Headers.acceptHeader: Headers.jsonContentType,
@@ -49,6 +50,24 @@ class ApiClient {
           handler.next(options);
         },
         onError: (error, handler) async {
+          // One retry for cold-start / wake timeouts (Render free tier).
+          final retried = error.requestOptions.extra['retried'] == true;
+          final isTimeout = error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.receiveTimeout ||
+              error.type == DioExceptionType.sendTimeout ||
+              error.type == DioExceptionType.connectionError;
+
+          if (!retried && isTimeout) {
+            final opts = error.requestOptions;
+            opts.extra['retried'] = true;
+            try {
+              final response = await _dio.fetch(opts);
+              return handler.resolve(response);
+            } on DioException catch (retryError) {
+              return handler.next(_mapDioError(retryError));
+            }
+          }
+
           handler.next(_mapDioError(error));
         },
       ),
